@@ -6,16 +6,16 @@ require('dotenv').config();
 async function setupDatabase() {
     try {
         const dbConfig = {
-            host: process.env.DB_HOST || process.env.MYSQLHOST,
-            user: process.env.DB_USER || process.env.MYSQLUSER,
-            password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD,
-            port: process.env.DB_PORT || process.env.MYSQLPORT || 3306,
+            host: process.env.MYSQLHOST || process.env.DB_HOST,
+            user: process.env.MYSQLUSER || process.env.DB_USER,
+            password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD,
+            port: process.env.MYSQLPORT || process.env.DB_PORT || 3306,
             multipleStatements: true
         };
 
-        console.log('Attempting to connect with config:', { 
-            host: dbConfig.host || 'UNDEFINED (Defaults to localhost)', 
-            user: dbConfig.user, 
+        console.log('Attempting to connect with config:', {
+            host: dbConfig.host || 'UNDEFINED (Defaults to localhost)',
+            user: dbConfig.user,
             port: dbConfig.port,
             // Don't log the password!
         });
