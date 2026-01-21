@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS lost_and_found_db;
-USE lost_and_found_db;
+-- CREATE DATABASE IF NOT EXISTS lost_and_found_db;
+-- USE lost_and_found_db;
 
 -- DROP TABLE IF EXISTS matches;
 -- DROP TABLE IF EXISTS lost_items;
