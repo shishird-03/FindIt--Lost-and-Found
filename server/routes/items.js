@@ -3,17 +3,12 @@ const multer = require('multer');
 const path = require('path');
 const pool = require('../config/db');
 const auth = require('../middleware/authMiddleware'); // Import middleware
+const bucket = require('../config/firebase'); // Import Firebase Bucket
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
+// Use Memory Storage for Firebase Uploads
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   // Accept images only
@@ -28,6 +23,39 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: fileFilter
 });
+
+// Helper: Upload file to Firebase
+const uploadToFirebase = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+
+    const fileName = `${Date.now()}_${file.originalname}`;
+    const fileUpload = bucket.file(fileName);
+
+    const blobStream = fileUpload.createWriteStream({
+      metadata: {
+        contentType: file.mimetype
+      }
+    });
+
+    blobStream.on('error', (error) => {
+      reject(error);
+    });
+
+    blobStream.on('finish', async () => {
+      // Make the file public (or use signed URLs, but public is easier for display in apps without token mgmt)
+      try {
+        await fileUpload.makePublic();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+        resolve(publicUrl);
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    blobStream.end(file.buffer);
+  });
+};
 
 // Helper function for keyword matching
 const buildMatchQuery = (table, text) => {
@@ -44,9 +72,13 @@ const buildMatchQuery = (table, text) => {
 router.post('/found', auth, upload.single('image'), async (req, res) => {
   const { name, description, location, date, time, contact } = req.body;
   const user_id = req.user.id;
-  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
+    let image_url = null;
+    if (req.file) {
+      image_url = await uploadToFirebase(req.file);
+    }
+
     const [result] = await pool.query(
       'INSERT INTO found_items (user_id, name, description, location, date_found, time_found, contact_info, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [user_id, name, description, location, date, time, contact, image_url]
@@ -70,11 +102,6 @@ router.post('/found', auth, upload.single('image'), async (req, res) => {
 
       // Update LOST item status to 'found'
       await pool.query('UPDATE lost_items SET status = "found" WHERE id = ?', [lostItem.id]);
-
-      // Update FOUND item status to 'resolved' (or keep generic, but user asked for status change context)
-      // Actually, let's keep found items as 'active' until claimed? Or 'resolved'? 
-      // The issue is "status is still active". Let's set to 'found' for lost items.
-
 
       matches.push({
         match_id: matchInsert.insertId,
@@ -108,9 +135,13 @@ router.post('/found', auth, upload.single('image'), async (req, res) => {
 router.post('/lost', auth, upload.single('image'), async (req, res) => {
   const { name, description, location, date, time, contact } = req.body;
   const user_id = req.user.id;
-  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
+    let image_url = null;
+    if (req.file) {
+      image_url = await uploadToFirebase(req.file);
+    }
+
     const [result] = await pool.query(
       'INSERT INTO lost_items (user_id, name, description, location, date_lost, time_lost, contact_info, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [user_id, name, description, location, date, time, contact, image_url]
